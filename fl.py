@@ -1,33 +1,22 @@
-from flask import Flask, request, jsonify
 from PyPDF2 import PdfReader
 from langchain.text_splitter import CharacterTextSplitter
 from langchain.embeddings.openai import OpenAIEmbeddings
 from langchain_community.vectorstores.faiss import FAISS
 from langchain.chains.question_answering import load_qa_chain
 from langchain.llms.openai import OpenAI
-from dotenv import load_dotenv
 import os
-
-app = Flask(__name__)
-
-# Load environment variables
-load_dotenv()
 
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
-@app.route('/ask', methods=['POST'])
-def ask_question():
-    # Check if a PDF file was uploaded
-    if 'pdf' not in request.files:
-        return jsonify({'error': 'No PDF file uploaded'}), 400
+def handler(event, context):
+    # Check if a PDF file URL was provided
+    if 'pdf_url' not in event:
+        return {'error': 'No PDF file URL provided'}, 400
 
-    pdf_file = request.files['pdf']
+    pdf_url = event['pdf_url']
 
-    # Read the PDF file and extract text
-    pdf_reader = PdfReader(pdf_file)
-    text = ""
-    for page in pdf_reader.pages:
-        text += page.extract_text()
+    # Download the PDF file and extract text (you'll need to implement this)
+    text = download_and_extract_text(pdf_url)
 
     # Split the text into chunks
     text_splitter = CharacterTextSplitter(
@@ -43,7 +32,7 @@ def ask_question():
     knowledge_base = FAISS.from_texts(chunks, embeddings)
 
     # Get the user's question from the request
-    user_question = request.form.get('question')
+    user_question = event.get('question')
 
     # Perform similarity search
     docs = knowledge_base.similarity_search(user_question)
@@ -57,7 +46,4 @@ def ask_question():
     # Get the answer to the user's question
     response = chain.run(input_documents=docs, question=user_question)
 
-    return jsonify({'answer': response}), 200
-
-if __name__ == '__main__':
-    app.run(debug=True)
+    return {'answer': response}, 200
